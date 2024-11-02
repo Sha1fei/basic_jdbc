@@ -103,7 +103,7 @@ public class Main {
     }
 
     public static void customDropTable(Connection connection){
-        try(var statement = connection.createStatement();) {
+        try(var statement = connection.createStatement()) {
             String sql = "DROP TABLE game_repository.info;";
             statement.execute(sql);
         } catch (SQLException e) {
