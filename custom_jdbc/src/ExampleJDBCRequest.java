@@ -8,6 +8,7 @@ public class ExampleJDBCRequest {
         Class <Driver> driverClass = Driver.class;
         try(var connection = ConnectionManager.open();) {
             customCreateTable(connection);
+            customGetMetaData(connection);
             customInsertData(connection);
             customUpdateData(connection);
             customSelectData(connection);
@@ -50,6 +51,34 @@ public class ExampleJDBCRequest {
                 System.out.println(generatedkeys.getString("name"));
                 System.out.println(generatedkeys.getString("email"));
                 System.out.println("---------");
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    public static void customGetMetaData(Connection connection){
+        try {
+            System.out.println("CustomGetMetaData: ");
+            var metaData = connection.getMetaData();
+            var catalogs = metaData.getCatalogs();
+            System.out.println("Catalogs: " + catalogs);
+            while(catalogs.next()){
+                var catalog = catalogs.getString("TABLE_CAT");
+                if (catalog.equals("dbSql")) {
+                    var schemas = metaData.getSchemas(catalog, "%");
+                    System.out.println(catalog);
+                    while(schemas.next()){
+                        var schema = schemas.getString("TABLE_SCHEM");
+                        var tables = metaData.getTables(catalog, schema, "%", new String[] {"TABLE"});
+                        System.out.println("   " + schema);
+                        while(tables.next()){
+                            if (schema.equals(tables.getString("TABLE_SCHEM"))) {
+                                System.out.println("      " + tables.getString("TABLE_NAME"));
+                                System.out.println("---------");
+                            }
+                        }
+                    }
+                }
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
