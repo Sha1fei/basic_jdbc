@@ -1,7 +1,8 @@
-import java.sql.Connection;
-import java.sql.Driver;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.sql.*;
 
 public class ExampleJDBCRequest {
     public void runJDBC() {
@@ -13,6 +14,9 @@ public class ExampleJDBCRequest {
             customUpdateData(connection);
             customSelectData(connection);
             customSelectWithInjectData(connection);
+            customShowTransactionData(connection);
+            customShowBatchData(connection);
+            customBlobMaker(connection);
             customDropTable(connection);
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -23,7 +27,7 @@ public class ExampleJDBCRequest {
         try(var statement = connection.createStatement();) {
             String sql = """
                     CREATE SCHEMA IF NOT EXISTS game_repository;
-                    CREATE TABLE IF NOT EXISTS game_repository.info (id INT GENERATED ALWAYS AS IDENTITY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, PRIMARY KEY (id));
+                    CREATE TABLE IF NOT EXISTS game_repository.info (id INT GENERATED ALWAYS AS IDENTITY, name VARCHAR(255) NOT NULL, email VARCHAR(255) NOT NULL, image BYTEA, PRIMARY KEY (id));
             """;
             statement.execute(sql); // - запуск любой операции sql
         } catch (SQLException e) {
@@ -33,7 +37,7 @@ public class ExampleJDBCRequest {
 
     public static void customInsertData(Connection connection){
         try(var statement = connection.createStatement();) {
-            String sql = "INSERT INTO game_repository.info (name, email) VALUES ('John Doe', 'john.doe@example.com'), ('Ivan Ivanov', 'ivan.ivanov@example.com'), ('Petr Sidorov', 'petr.sidorov@example.com');";
+            String sql = "INSERT INTO game_repository.info (name, email, image) VALUES ('John Doe', 'john.doe@example.com', NULL), ('Ivan Ivanov', 'ivan.ivanov@example.com', NULL), ('Petr Sidorov', 'petr.sidorov@example.com', NULL);";
             statement.execute(sql);
         } catch (SQLException e) {
             throw new RuntimeException(e);
@@ -109,7 +113,7 @@ public class ExampleJDBCRequest {
         var infoId1 = 1;
         var sql1 = "SELECT id, name, email FROM game_repository.info WHERE id = %s;".formatted(infoId1);
         var infoId2 = 2;
-        var sql2 = "SELECT id, name, email FROM game_repository.info WHERE id = ?;";
+        var sql2 = "SELECT id, name, email, image FROM game_repository.info WHERE id = ?;";
 
         try(var statement = connection.createStatement(); var preparedStatement = connection.prepareStatement(sql2);) {
             System.out.println("customSelectWithInjectData: ");
@@ -127,10 +131,89 @@ public class ExampleJDBCRequest {
             while(executeResult.next()){
                 System.out.println(executeResult.getObject("id", Integer.class)); // Null safe
                 System.out.println(executeResult.getObject("name", String.class));
-                System.out.println(executeResult.getObject("email", String.class));
                 System.out.println("---------");
             }
         } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void customShowTransactionData(Connection connection) throws SQLException {
+        var infoId = 2;
+        var sql = "UPDATE game_repository.info SET email = 'ivan2.ivanov@example.com' WHERE id = ?;";
+        var sql2 = "SELECT id, name, email FROM game_repository.info;";
+        try {
+            connection.setAutoCommit(false); // - отключение автокоммита
+            var preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.setLong(1, infoId);
+            preparedStatement.executeUpdate();
+            preparedStatement.close();
+            if(true){
+                throw new RuntimeException("Commit failed");
+            }
+           connection.commit();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } catch (RuntimeException e) {
+            connection.rollback();
+        }
+        finally {
+            try(var preparedStatement2 = connection.prepareStatement(sql2);) {
+                var executeResult2= preparedStatement2.executeQuery();
+                System.out.println("ShowTransaction: ");
+                while(executeResult2.next()){
+                    System.out.println(executeResult2.getObject("id", Integer.class)); // Null safe
+                    System.out.println(executeResult2.getObject("name", String.class));
+                    System.out.println(executeResult2.getObject("email", String.class));
+                    System.out.println("---------");
+                }
+                connection.setAutoCommit(true);
+            } catch (SQLException e2) {
+                throw new RuntimeException(e2);
+            }
+        }
+    }
+
+    public static void customShowBatchData(Connection connection){
+        var sql1 = "DELETE FROM game_repository.info WHERE id = 1;";
+        var sql2 = "DELETE FROM game_repository.info WHERE id = 2;";
+        var sql3 = "SELECT id, name, email FROM game_repository.info;";
+        try (var statement = connection.createStatement(); var preparedStatement = connection.prepareStatement(sql3);){
+            statement.addBatch(sql1);
+            statement.addBatch(sql2);
+            var executeResult = statement.executeBatch();
+            System.out.println("customShowBatchData: ");
+            var executeResult2= preparedStatement.executeQuery();
+            while(executeResult2.next()){
+                System.out.println(executeResult2.getObject("id", Integer.class)); // Null safe
+                System.out.println(executeResult2.getObject("name", String.class));
+                System.out.println(executeResult2.getObject("email", String.class));
+                System.out.println("---------");
+            }
+        } catch (SQLException e2) {
+            throw new RuntimeException(e2);
+        }
+    }
+
+    public static void customBlobMaker(Connection connection){
+        var sql1 = "UPDATE game_repository.info SET image = ? WHERE id = ?;";
+        var sql2 = "SELECT image FROM game_repository.info WHERE id = ?;";
+        try(var preparedStatement1 = connection.prepareStatement(sql1); var preparedStatement2 = connection.prepareStatement(sql2)){
+            // var blob = connection.createBlob();
+            // blob.setBytes(1, Files.readAllBytes(Path.of("resources", "images", "cat.jpg")));
+            // preparedStatement.setBlob(1, blob); - для других БД
+            preparedStatement1.setBytes(1, Files.readAllBytes(Path.of("resources", "images", "cat.jpg")));
+            preparedStatement1.setLong(2, 3);
+            preparedStatement2.setLong(1, 3);
+            preparedStatement1.executeUpdate();
+            var resultSet = preparedStatement2.executeQuery();
+            if(resultSet.next()){
+                var image = resultSet.getBytes("image");
+                Files.write(Path.of("resources", "images", "cat_copy.jpg"), image, StandardOpenOption.CREATE);
+            }
+        }catch(SQLException e){
+            throw new RuntimeException(e);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
