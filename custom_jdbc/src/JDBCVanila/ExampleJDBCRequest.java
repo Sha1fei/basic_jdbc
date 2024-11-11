@@ -1,3 +1,13 @@
+package JDBCVanila;
+
+import DAOVanila.DAO.CompanyDAO;
+import DAOVanila.DAO.EmployeeDAO;
+import DAOVanila.DTO.CompanyFilter;
+import DAOVanila.DTO.EmployeeFilter;
+import DAOVanila.Entity.Company;
+import DAOVanila.Entity.Employee;
+import Util.ConnectionManager;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -7,7 +17,61 @@ import java.sql.*;
 public class ExampleJDBCRequest {
     public void runJDBC() {
         Class <Driver> driverClass = Driver.class;
-        try(var connection = ConnectionManager.open();) {
+        try(var connection = ConnectionManager.get();) {
+            var companyDAO = CompanyDAO.getInstance(connection);
+            companyDAO.createTable();
+            var company1 = new Company("Google");
+            var company2 = new Company("Facebook");
+            var company3 = new Company("Apple");
+            var savedCompanyId1 = companyDAO.create(company1).getId();
+            var savedCompanyId2 = companyDAO.create(company2).getId();
+            var savedCompanyId3 = companyDAO.create(company3).getId();
+            company3.setName("Samsung");
+            companyDAO.update(company3);
+            var company = companyDAO.findById(company3.getId());
+            var companies = companyDAO.findAll();
+            var cFilter = new CompanyFilter(2, 0, "Samsung");
+            var companies2 = companyDAO.findAll(cFilter);
+            System.out.println(company);
+            System.out.println(companies);
+            System.out.println(companies2);
+
+
+            var employeeDAO = EmployeeDAO.getInstance(connection);
+            employeeDAO.createTable();
+            var employee1 = new Employee("John", "Doe", 1000L, 1L);
+            var employee2 = new Employee("Ivan", "Ivanov", 2000L, 2L);
+            var employee3 = new Employee("Petr", "Sidorov", 3000L, 3L);
+            var savedEmployeeId1 = employeeDAO.create(employee1).getId();
+            var savedEmployeeId2 = employeeDAO.create(employee2).getId();
+            var savedEmployeeId3 = employeeDAO.create(employee3).getId();
+            employee3.setName("Petr2");
+            employee3.setSurname("Sidorov2");
+            employee3.setSalary(3002L);
+            employee3.setCompany_id(1L);
+            employeeDAO.update(employee3);
+            var employee = employeeDAO.findById(employee3.getId());
+            var employees = employeeDAO.findAll();
+            var eFilter = new EmployeeFilter(2, 0, "Petr2", null, null, null);
+            var employees2 = employeeDAO.findAll(eFilter);
+
+            System.out.println(employee);
+            System.out.println(employees);
+            System.out.println(employees2);
+
+            employeeDAO.delete(savedEmployeeId1);
+            employeeDAO.delete(savedEmployeeId2);
+            employeeDAO.delete(savedEmployeeId3);
+
+            companyDAO.delete(savedCompanyId1);
+            companyDAO.delete(savedCompanyId2);
+            companyDAO.delete(savedCompanyId3);
+
+            employeeDAO.deleteTable();
+            companyDAO.deleteTable();
+
+
+
             customCreateTable(connection);
             customGetMetaData(connection);
             customInsertData(connection);
@@ -18,6 +82,7 @@ public class ExampleJDBCRequest {
             customShowBatchData(connection);
             customBlobMaker(connection);
             customDropTable(connection);
+
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
