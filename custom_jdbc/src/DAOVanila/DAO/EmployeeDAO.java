@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class EmployeeDAO {
+public class EmployeeDAO implements DAO<Long, Employee> {
     private static Connection connection;
     private static EmployeeDAO INSATNCE;
     private EmployeeDAO(Connection connection){
@@ -119,6 +119,7 @@ public class EmployeeDAO {
         }
     }
 
+
     public List<Employee> findAll(){
         try(var preparedStatement = connection.prepareStatement(FIND_ALL_SQL)) {
             var resultSet =  preparedStatement.executeQuery();
@@ -173,7 +174,7 @@ public class EmployeeDAO {
                         resultSet.getString("name"),
                         resultSet.getString("surname"),
                         resultSet.getLong("salary"),
-                        resultSet.getLong("company_id"));
+                        resultSet.getLong("company_id")); // если нужно JOIN то либо засовываешь в sql, либо находишь Company и возвращаешь вместо company_id
                 employee.setId(resultSet.getLong("id"));
                 employees.add(employee);
             }

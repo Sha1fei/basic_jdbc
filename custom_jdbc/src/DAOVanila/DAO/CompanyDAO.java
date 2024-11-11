@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class CompanyDAO {
+public class CompanyDAO implements DAO<Long, Company> {
     private static Connection connection;
     private static CompanyDAO INSATNCE;
     private CompanyDAO(Connection connection){
